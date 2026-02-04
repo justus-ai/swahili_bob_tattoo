@@ -9,13 +9,23 @@ https://docs.djangoproject.com/en/3.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.2/ref/settings/
 """
+import errno
+try:
+    os.makedirs(LOGS_DIR, exist_ok=True)
+except OSError as e:
+    if e.errno != errno.EEXIST:
+        raise
+
+if not AWS_STORAGE_BUCKET_NAME:
+    raise RuntimeError("AWS_STORAGE_BUCKET_NAME is missing; check your environment variables.")
+if not AWS_ACCESS_KEY_ID:
+    raise RuntimeError("AWS_ACCESS_KEY_ID is missing; check your environment variables.")
+if not AWS_SECRET_ACCESS_KEY:
+    raise RuntimeError("AWS_SECRET_ACCESS_KEY is missing; check your environment variables.")
 from pathlib import Path
 import os  # Keeping a single `import os`
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'swahili_bob_tattoo_v1.settings')
-
-application = get_wsgi_application()
 
 import dj_database_url
 if os.path.exists('env.py'):
@@ -33,10 +43,11 @@ PORT = int(os.environ.get('PORT', 8000))  # Use 8000 as the default fallback
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY', '')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = 'DEVELOPMENT' in os.environ
+from dotenv import load_dotenv
+load_dotenv()
 
-ALLOWED_HOSTS = ['localhost', 'justus-ai-swahili-bob-tattoo.onrender.com']
+DEBUG = 'DEVELOPMENT' in os.environ
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'justus-ai-swahili-bob-tattoo.onrender.com']
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -119,8 +130,8 @@ ACCOUNT_USERNAME_MIN_LENGTH = 4
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
 
-ROOT_URLCONF = 'swahili_bob_tattoo_v1.urls'
-WSGI_APPLICATION = 'swahili_bob_tattoo_v1.wsgi.application'
+ROOT_URLCONF = 'swahili_bob_tattoo.urls'
+WSGI_APPLICATION = 'swahili_bob_tattoo.wsgi.application'
 
 
 # Database
@@ -128,16 +139,17 @@ WSGI_APPLICATION = 'swahili_bob_tattoo_v1.wsgi.application'
 
 
 if 'DATABASE_URL' in os.environ:
-    DATABASES = {
-        'default': dj_database_url.parse(os.environ.get('DATABASE_URL'))
-    }
+    DATABASES = {'default': dj_database_url.parse(os.getenv('DATABASE_URL'))}
 else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    if DEBUG:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+            }
         }
-    }
+    else:
+        raise RuntimeError("DATABASE_URL is required in production.")
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [
@@ -170,19 +182,17 @@ STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
 if 'USE_AWS' in os.environ:
-    # Cache control
-    AWS_S3_OBJECT_PARAMETERS = {
-        'Expires': 'Thu, 31 Dec 2099 20:00:00 GMT',
-        'CacheControl': 'max-age=94608000',
-    }
-    # Bucket Config
-    AWS_STORAGE_BUCKET_NAME = 'swahili-bob-tattoo'
-    AWS_S3_REGION_NAME = 'us-east-1'
-    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+    AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', '')
+    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
+    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+
+    # Check required AWS environment variables
+    if not all([AWS_STORAGE_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]):
+        raise RuntimeError("Missing AWS S3 configurations. Check environment variables.")
+
 
     # Static and media files
     STATICFILES_STORAGE = 'custom_storages.StaticStorage'
@@ -193,10 +203,14 @@ if 'USE_AWS' in os.environ:
     # Override static and media URLs in production
     STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{STATICFILES_LOCATION}/'
     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{MEDIAFILES_LOCATION}/'
+else:
+    STATIC_URL = '/static/'  # Fallback for development
+    MEDIA_URL = '/media/'    # Fallback for development
+    STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
+    
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Stripe
 FREE_DELIVERY_THRESHOLD = 50
@@ -208,12 +222,36 @@ STRIPE_WH_SECRET = os.getenv('STRIPE_WH_SECRET', '')
 
 if 'DEVELOPMENT' in os.environ:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    DEFAULT_FROM_EMAIL = 'swahilibobtattoo@example.com'
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_USE_TLS = True
-    EMAIL_PORT = 587
-    EMAIL_HOST = 'smtp.gmail.com'
-    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASS')
-    DEFAULT_FROM_EMAIL = os.environ.get('EMAIL_HOST_USER')
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+
+    if not all([EMAIL_HOST_USER, EMAIL_HOST_PASSWORD]):
+        raise RuntimeError("Missing EMAIL environment variables.")
+        # Ensure the logs directory exists for logging purposes
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOGS_DIR, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+        'file': {
+            'level': 'WARNING',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/django.log'),  # Ensure this folder exists
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'] if not DEBUG else ['console'],
+        'level': 'DEBUG' if DEBUG else 'WARNING',
+    },
+}
+
+
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
