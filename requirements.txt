@@ -9,6 +9,8 @@ attrs==25.4.0
 babel==2.17.0
 beautifulsoup4==4.14.2
 bleach==6.3.0
+boto3==1.42.42
+botocore==1.42.42
 build==1.4.0
 certifi==2025.11.12
 cffi==2.0.0
@@ -48,6 +50,7 @@ ipython_pygments_lexers==1.1.1
 isoduration==20.11.0
 jedi==0.19.2
 Jinja2==3.1.6
+jmespath==1.1.0
 json5==0.12.1
 jsonpointer==3.0.0
 jsonschema==4.25.1
@@ -103,6 +106,7 @@ rfc3986-validator==0.1.1
 rfc3987-syntax==1.1.0
 rpds-py==0.29.0
 rsa==4.9.1
+s3transfer==0.16.0
 Send2Trash==1.8.3
 setuptools==80.9.0
 six==1.17.0
