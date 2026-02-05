@@ -29,11 +29,18 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
-    'allauth','newsletter', 
+    'allauth', 
     'allauth.account',
     'allauth.socialaccount',
-    'home', 'products', 'bag', 'checkout', 'profiles',
-    'crispy_forms', 'storages',
+    'home', 
+    'products',
+    'bag',
+    'checkout',
+    'profiles',
+    'newsletter',
+    'crispy_forms', 
+    'storages',
+    
 ]
 
 MIDDLEWARE = [
